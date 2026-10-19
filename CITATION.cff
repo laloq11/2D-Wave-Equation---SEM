@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "2D Wave Equation -- Spectral Element Method"
+abstract: >-
+  Matrix-free spectral element solver for the two-dimensional scalar wave
+  equation with explicit time integration, implemented in C++/OpenMP (FP64)
+  and CUDA (FP32), with a Python layer for runs, benchmarks and plots.
+type: software
+authors:
+  - family-names: "Quintana Diaz"
+    given-names: "Eduardo"
+license: MIT
+keywords:
+  - spectral element method
+  - wave equation
+  - matrix-free
+  - sum factorization
+  - CUDA
+  - OpenMP
+references:
+  - type: thesis
+    authors:
+      - family-names: "D'Angella"
+        given-names: "Davide"
+    title: "The multi-level Bézier extraction for hierarchical local refinement of trimmed isogeometric finite cell analyses"
+    thesis-type: "Dissertation (Dr.-Ing.)"
+    institution:
+      name: "Technische Universität München"
+      city: "München"
+    year: 2022

@@ -1,0 +1,8 @@
+build/
+.vscode/
+.claude/
+
+__pycache__/
+
+results/
+cuda_spectral/solver.md

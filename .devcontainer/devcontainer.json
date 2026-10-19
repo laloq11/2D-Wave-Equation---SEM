@@ -1,0 +1,25 @@
+{
+  "name": "spectralcm-cuda",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "runArgs": ["--gpus", "all"],
+  "workspaceFolder": "/workspaces/spectral-cm",
+  "postCreateCommand": "cmake -S /workspaces/spectral-cm/source -B /workspaces/spectral-cm/source/build -GNinja -DCMAKE_BUILD_TYPE=Debug",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "nvidia.nsight-vscode-edition"
+      ]
+    }
+  },
+  
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind"
+  ]
+}
