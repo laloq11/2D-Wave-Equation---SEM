@@ -20,6 +20,151 @@ keywords:
 references:
   - type: thesis
     authors:
+      - family-names: "Faßbender"
+        given-names: "Christian"
+    title: "Time Integration for the Spectral Cell Method with Application to the Full Waveform Inversion"
+    thesis-type: "Master's thesis (M.Sc.)"
+    institution:
+      name: "Technische Universität München"
+      city: "München"
+    year: 2023
+  - type: article
+    authors:
+      - family-names: "Faßbender"
+        given-names: "Christian"
+      - family-names: "Bürchner"
+        given-names: "Tim"
+      - family-names: "Kopp"
+        given-names: "Philipp"
+      - family-names: "Rank"
+        given-names: "Ernst"
+      - family-names: "Kollmannsberger"
+        given-names: "Stefan"
+    title: "Implicit-explicit time integration for the immersed wave equation"
+    journal: "Computers and Mathematics with Applications"
+    volume: 163
+    start: 1
+    end: 13
+    year: 2024
+    doi: "10.1016/j.camwa.2024.02.049"
+  - type: book
+    authors:
+      - family-names: "Hughes"
+        given-names: "Thomas J. R."
+    title: "The Finite Element Method: Linear Static and Dynamic Finite Element Analysis"
+    publisher:
+      name: "Dover Publications"
+    year: 2000
+  - type: article
+    authors:
+      - family-names: "Joulaian"
+        given-names: "Meysam"
+      - family-names: "Duczek"
+        given-names: "Sascha"
+      - family-names: "Gabbert"
+        given-names: "Ulrich"
+      - family-names: "Düster"
+        given-names: "Alexander"
+    title: "Finite and spectral cell method for wave propagation in heterogeneous materials"
+    journal: "Computational Mechanics"
+    volume: 54
+    start: 661
+    end: 675
+    year: 2014
+  - type: article
+    authors:
+      - family-names: "Patera"
+        given-names: "Anthony T."
+    title: "A spectral element method for fluid dynamics: laminar flow in a channel expansion"
+    journal: "Journal of Computational Physics"
+    volume: 54
+    start: 468
+    end: 488
+    year: 1984
+  - type: article
+    authors:
+      - family-names: "Komatitsch"
+        given-names: "Dimitri"
+      - family-names: "Tromp"
+        given-names: "Jeroen"
+    title: "Introduction to the spectral element method for three-dimensional seismic wave propagation"
+    journal: "Geophysical Journal International"
+    volume: 139
+    start: 806
+    end: 822
+    year: 1999
+  - type: article
+    authors:
+      - family-names: "Orszag"
+        given-names: "Steven A."
+    title: "Spectral methods for problems in complex geometries"
+    journal: "Journal of Computational Physics"
+    volume: 37
+    start: 70
+    end: 92
+    year: 1980
+  - type: book
+    authors:
+      - family-names: "Deville"
+        given-names: "Michel O."
+      - family-names: "Fischer"
+        given-names: "Paul F."
+      - family-names: "Mund"
+        given-names: "Ernest H."
+    title: "High-Order Methods for Incompressible Fluid Flow"
+    publisher:
+      name: "Cambridge University Press"
+    year: 2002
+  - type: book
+    authors:
+      - family-names: "Karniadakis"
+        given-names: "George"
+      - family-names: "Sherwin"
+        given-names: "Spencer"
+    title: "Spectral/hp Element Methods for Computational Fluid Dynamics"
+    edition: "2nd"
+    publisher:
+      name: "Oxford University Press"
+    year: 2005
+  - type: article
+    authors:
+      - family-names: "Kronbichler"
+        given-names: "Martin"
+      - family-names: "Kormann"
+        given-names: "Katharina"
+    title: "A generic interface for parallel cell-based finite element operator application"
+    journal: "Computers & Fluids"
+    volume: 63
+    start: 135
+    end: 147
+    year: 2012
+  - type: article
+    authors:
+      - family-names: "Williams"
+        given-names: "Samuel"
+      - family-names: "Waterman"
+        given-names: "Andrew"
+      - family-names: "Patterson"
+        given-names: "David"
+    title: "Roofline: an insightful visual performance model for multicore architectures"
+    journal: "Communications of the ACM"
+    volume: 52
+    issue: 4
+    start: 65
+    end: 76
+    year: 2009
+  - type: conference-paper
+    authors:
+      - family-names: "Hoefler"
+        given-names: "Torsten"
+      - family-names: "Belli"
+        given-names: "Roberto"
+    title: "Scientific benchmarking of parallel computing systems: twelve ways to tell the masses when reporting performance results"
+    conference:
+      name: "SC '15: International Conference for High Performance Computing, Networking, Storage and Analysis"
+    year: 2015
+  - type: thesis
+    authors:
       - family-names: "D'Angella"
         given-names: "Davide"
     title: "The multi-level Bézier extraction for hierarchical local refinement of trimmed isogeometric finite cell analyses"

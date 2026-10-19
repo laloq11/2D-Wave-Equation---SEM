@@ -20,7 +20,7 @@ This repository solves the 2-dimensional scalar wave equation with high-order sp
 1. [Context and history](#1-context-and-history)
 2. [Mathematical model](#2-mathematical-model)
 3. [Spatial discretization](#3-spatial-discretization)
-4. [Matrix-free operators (sum factorization)](#4-matrix-free-operators-sum-factorization)
+4. [Matrix-free operators](#4-matrix-free-operators-sum-factorization)
 5. [Time integration and stability](#5-time-integration-and-stability)
 6. [Implementations](#6-implementations)
 7. [Repository layout](#7-repository-layout)
@@ -74,7 +74,7 @@ t_0=\frac{1}{f_0},\quad \sigma_T=\frac{1}{2\pi f_0}
 
 Additional information about the simulation:
 
-- **Source location.** $f_x$ is centred at the corner $(0,0)$ ([params.cpp:213](spectralcm/src/params.cpp#L213-L219)). With reflecting boundaries this equals, by symmetry, one quarter of a centred source in a $[-2,2]^2$ domain.
+- **Source location.** $f_x$ is centred at the corner $(0,0)$ ([params.cpp:213](spectralcm/src/params.cpp#L213-L219)). With reflecting boundaries this equals, by symmetry, one quarter of a centred source in a $[0,2]^2$ domain.
 - **No hole.** The original problem has a void of radius 0.4 at $(1,1)$. This code simulates only uncut cells, so the void is absent. The GIFs still draw its outline for future implementation. 
 - **Wavelet.** $f_t$ is the first derivative of a Gaussian. The reference code calls it a Ricker wavelet, which is the second derivative.
 - **Boundaries.** All four edges are natural (homogeneous Neumann) boundaries, so waves reflect. There is no absorbing layer.
@@ -84,10 +84,23 @@ Additional information about the simulation:
 - **Reference element.** $r,s\in[-1,1]$, mapped by $x=(i_e+r/2+1/2)\,h_x$ and $y=(j_e+s/2+1/2)\,h_y$ with $h=2/n_e$ ([params.cpp:207](spectralcm/src/params.cpp#L207-L211)).
 - **Basis.** One-dimensional Lagrange polynomials $\ell_a$ on the $p+1$ GLL nodes $\xi_a$ (the end points $\pm1$ and the roots of $P_p'$). The 2D basis is the tensor product $N_{ab}(r,s)=\ell_a(r)\,\ell_b(s)$, with $(p+1)^2$ nodes per element.
 - **Global numbering.** Node $(I,J)$ with $I=p\,i_e+a$ and $J=p\,j_e+b$ gets index $g=I\,N_y+J$, where $N_y=n_e p+1$. The mesh has $N=(n_e p+1)^2$ degrees of freedom ([createLocationMap](spectralcm/src/params.cpp#L135-L146)).
-- **Quadrature.** GLL with $p+1$ points per direction for mass, stiffness and load. Quadrature points coincide with nodes, so the mass matrix is exactly diagonal: $M_e=\rho\,\tfrac{h_x}{2}\tfrac{h_y}{2}\,(w\otimes w)$. GLL is exact up to degree $2p-1$, so the stiffness is slightly under-integrated in the cross direction. This is the classical spectral element choice. The GLL nodes and weights and the Lagrange basis come from the AdhoC++ library of the Chair for Computation in Engineering, TUM (see [§12](#12-third-party-code-provenance-and-licence)). 
+- **Quadrature.** GLL with $p+1$ points per direction for mass, stiffness and load. Quadrature points coincide with nodes, so the mass matrix is exactly diagonal: $M_e=\rho\,\tfrac{h_x}{2}\tfrac{h_y}{2}\,(w\otimes w)$. GLL is exact up to degree $2p-1$, so the stiffness and mass are slightly under-integrated in the cross direction. This is the classical spectral element choice. The GLL nodes and weights and the Lagrange basis come from the AdhoC++ library of the Chair for Computation in Engineering, TUM (see [§12](#12-third-party-code-provenance-and-licence)). 
 - **Same number of elements in both directions.** The mesh is always $n_e \times n_e$. This was a design decision from the start of the project for simplifying the implementation.
 
-**Relation to the spectral cell method.** The spectral cell method (SCM) [4, 1, 2] embeds the physical domain in a Cartesian grid and integrates cut cells with quadtrees. On uncut cells it reduces to the spectral element method (SEM) [5, 6, 9]. This repository has only uncut cells, so mathematically it is a GLL spectral element method. One more difference: [1, 2] integrate the stiffness of uncut cells with Gauss–Legendre points, while this code uses GLL points. That changes the critical time step (§5).
+**Relation to the spectral cell method.** The spectral cell method (SCM) [4, 1, 2] embeds the physical domain in a Cartesian grid and integrates cut cells with quadtrees. On uncut cells it reduces to the spectral element method (SEM) [5, 6, 9]. This repository has only uncut cells, so mathematically it is a GLL spectral element method. One more difference: [1, 2] integrate the stiffness and load vector of uncut cells with Gauss–Legendre points, while this code uses GLL points. That changes the critical time step (§5).
+
+**Semi-discrete system.** Multiplying by a test function, integrating by parts and inserting $u_h(\mathbf x,t)=\sum_j N_j(\mathbf x)\,\hat u_j(t)$ gives (the boundary integral vanishes because of the homogeneous Neumann condition)
+
+```math
+M\,\ddot{\hat{u}}(t)+K\,\hat u(t)=f_t(t)\,F,
+\qquad
+M_{ij}=\int_{\Omega}\rho\,N_iN_j\,d\Omega,\quad
+K_{ij}=\int_{\Omega}\rho c^{2}\,\nabla N_i\cdot\nabla N_j\,d\Omega,\quad
+F_i=\int_{\Omega}N_i\,f_x\,d\Omega
+```
+
+$M$, $K$ and $F$ are sums of element contributions $M_e$, $K_e$, $F_e$, each evaluated on the reference element with $d\Omega=\tfrac{h_x}{2}\tfrac{h_y}{2}\,dr\,ds$. With GLL quadrature $M$ is diagonal ($M_L$, see Quadrature above); §4 evaluates $K\hat u$ and $F$ without forming the matrices, and §5 integrates the system in time.
+
 
 ## 4. Matrix-free operators
 
@@ -110,13 +123,13 @@ The three kernels follow algorithms numbered 5.7, 8.2 and 8.4 in D. D'Angella's 
 
 | Function | Purpose | How | Cost in 2D |
 |---|---|---|---|
-| `alg_57` | apply a Kronecker product $R_1\otimes R_2$ to $n^2$ values | two sweeps of $n$ small $n\times n$ mat-vecs | $2n^3$ multiply-adds |
+| `alg_57` | apply a Kronecker product $R_1\otimes R_2$ to $n^2$ values | two sweeps of $n$ small $n\times n$ mat-vecs | $2n^3$ flops |
 | `alg_82` | mass-type operator $v\mapsto B^{\top}G\,B\,v$ | 2 × `alg_57` plus pointwise scaling | about $8n^3$ flops |
 | `alg_84` | stiffness operator $v\mapsto\sum_d B_d^{\top}W B_d\,v$ | 4 × `alg_57` plus scaling | about $16n^3$ flops |
 
 Per element and step the code runs `alg_84` on $u_e$ and `alg_82` on the source values. That is about $24(p+1)^3$ flops plus $(p+1)^2$ exponentials. A dense element matrix would cost $2(p+1)^4$ flops per product. 
 
-The lumped mass vector is `alg_82` applied to a vector of ones, assembled once ([compute_Mass_Cvector_OMP](spectralcm/src/ontheFly.cpp#L262-L286), [solve_Mass_singleThread](cuda_spectral/src/cuontheFly.cu#L1283-L1312)). This particular characteristic only holds for uncut elements, thus, the implementation up to this date contains a fully diagonal lumped mass matrix treated as a vector. 
+The lumped mass vector is `alg_82` applied to a vector of ones, assembled once ([compute_Mass_Cvector_OMP](spectralcm/src/ontheFly.cpp#L262-L286), [solve_Mass_singleThread](cuda_spectral/src/cuontheFly.cu#L1283-L1312)). This particular characteristic only holds for uncut elements, thus, the implementation up to this date contains a fully diagonal matrix treated as a vector. 
 
 <!-- > [!NOTE] Leave it here for next implementation. 
 > **Optimization potential.** $N_0$ is the identity at GLL points, so half of the work in `alg_57` multiplies by an identity matrix. $F_e=G\circ f_x$ does not depend on time and is recomputed in every step. Using both facts would cut the work to about $8(p+1)^3$ flops per element (derivative sweeps only). -->
