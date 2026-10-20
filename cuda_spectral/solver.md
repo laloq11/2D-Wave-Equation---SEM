@@ -1,24 +1,27 @@
 # GPU solver: paths and names
 
-This file is intended to server as a visual help on the different versions that are available when using GPU. How the GPU solver of this repo is reached, what each path runs, and which code belongs to which GPU version. `.cu` means [src/cuontheFly.cu](src/cuontheFly.cu) and `.cuh` means [inc/cuontheFly.cuh](inc/cuontheFly.cuh).
+There are two GPU versions and four ways into them, and the function names alone don't make it obvious which is which. This page maps it out: which command ends up in which host function, what each path runs on the GPU, and which code belongs to which version. Below, `.cu` is [src/cuontheFly.cu](src/cuontheFly.cu) and `.cuh` is [inc/cuontheFly.cuh](inc/cuontheFly.cuh).
 
-## Naming rule
+### Disclaimer
+*This page was generated with AI assistance from the source code and may contain errors, such as wrong line numbers or incomplete caller lists. If it disagrees with the code, the code is right. Please open an issue if you find a mismatch.*
+
+## Naming
 
 | Name part | Meaning |
 |---|---|
 | `singleThread` | GPU code used only by the version with one thread per element |
-| `pDegreeThread` | GPU code used only by the version with $(p+1)^2$ threads per element|
+| `pDegreeThread` | GPU code used only by the version with $(p+1)^2$ threads per element |
 | `*_gpu` | GPU code used by every path |
 | `cu_*` in a host function | host code of the CUDA library: `solve_w_eq_2d_cu_*`, `compute_invM_fKu_cu_*`, `compute_fKu_cu_*` |
 | `_flat`, `_matrices` (only in `cubase`) | raw array in the GPU memory layout, or `std::vector<Matrixt>`; unrelated to the two GPU versions |
 | `reference::` (only in `cubase`) | CPU versions of the algorithms, used only to check GPU results |
 
-One exception: the mass kernel `solve_Mass_singleThread` runs in every path, but keeps `singleThread` because the kernel itself uses one thread per element.
+The one exception is the mass kernel `solve_Mass_singleThread`. Every path runs it, but it keeps the `singleThread` name because the kernel itself uses one thread per element.
 
 ## Entry points at a glance
 
 <!-- THIS IS GOLD. NEVER ERASE, JUST UPDATE -->
-Which command reaches which host function, and which fKu kernel each path launches every step. The next section shows the same four paths stage by stage.
+Which command reaches which host function, and which fKu kernel each path launches in every step. The next diagram shows the same four paths stage by stage.
 
 ```mermaid
 flowchart LR
@@ -60,11 +63,11 @@ flowchart LR
   cl -->|every step| K2
 ```
 
-Blue: used only by the single-thread version. Orange: used only by the $(p+1)^2$-thread version. Grey: used by every path. Red: no caller.
+Blue: single-thread version only. Orange: $(p+1)^2$-thread version only. Grey: shared by every path. Red: nothing calls it.
 
 ## The four GPU paths
 
-Each row is one path: what you run on the left, then the four stages it goes through on the GPU. Blue: only the single-thread version. Orange: only the $(p+1)^2$-thread version. Grey: every path. Red: no caller. The host function that runs the stages is named in the row title (A, D) or at the top of each stage (B, C).
+One row per path: what you run on the left, then the four stages on the GPU. The host function that runs the stages is in the row title for A and D, and at the top of each stage for B and C. Colours as above.
 
 ```mermaid
 flowchart LR
@@ -107,13 +110,13 @@ flowchart LR
   d2 --> dS
 ```
 
-\* `solve_Mass_singleThread` runs in every path; it keeps its name because the kernel itself uses one thread per element. fKu and UPDATE repeat `nsteps` times.
+\* Every path runs `solve_Mass_singleThread` (see the naming exception above). fKu and UPDATE repeat `nsteps` times.
 
-The two GPU versions differ in one kernel only: `solve_fKu_*`, the element operator that runs every time step. Setup, the update kernels and teardown are the same code in every path.
+The two versions differ in a single kernel, `solve_fKu_*`, the element operator that runs every time step. Setup, the update kernels and teardown are the same code in all four paths.
 
-- **A and D** are one host function each, which does setup, the time loop and teardown: `compute_invM_fKu_cu_singleThread` and `compute_invM_fKu_cu_pDegreeThread`. They copy `u` back every 50 steps and write it to the CSV.
-- **B and C** split the same work into three calls: `preinitialize_invM_fKu_gpu` (setup), `compute_fKu_cu_*` (time loop) and `finish_simulation_gpu` (teardown). `benchmark_solver` calls them one after the other.
-- **A and B** launch `solve_fKu_singleThread` with one thread per element. **C and D** launch `solve_fKu_pDegreeThread` with $(p+1)^2$ threads per element.
+- **A and D** do setup, time loop and teardown in one host function (`compute_invM_fKu_cu_singleThread` / `compute_invM_fKu_cu_pDegreeThread`). They copy `u` back every 50 steps and write it to the CSV.
+- **B and C** split the same work into three calls so that `benchmark_solver` can time them: `preinitialize_invM_fKu_gpu` (setup), `compute_fKu_cu_*` (time loop) and `finish_simulation_gpu` (teardown).
+- **A and B** launch `solve_fKu_singleThread` (one thread per element); **C and D** launch `solve_fKu_pDegreeThread` ($(p+1)^2$ threads per element).
 
 ## Entry points
 
@@ -126,9 +129,9 @@ The two GPU versions differ in one kernel only: `solve_fKu_*`, the element opera
 | `benchmark_solver.py --solver cu_pDegreeThread`, which runs `benchmark_solver -d cu_pDegreeThread` ([:132](../roofline/solver/benchmark_solver.cu#L132)) | C | `preinitialize_invM_fKu_gpu`, `compute_fKu_cu_pDegreeThread`, `finish_simulation_gpu` |
 | `roofline_cuda -o 57\|82\|84 -v 1\|2` ([roofline.cu](../roofline/cuda/roofline.cu)) | none | one device helper at a time through a test wrapper: `-v 1` the `singleThread` one, `-v 2` the `pDegreeThread` one |
 
-## Inside the fKu kernel: two families of helpers
+## Inside the fKu kernel
 
-Each fKu kernel calls its own copy of the sum-factorization helpers. Indented rows are called by the row above them.
+Each fKu kernel has its own copy of the sum-factorization helpers. Indented rows are called by the row above.
 
 | Step | `solve_fKu_singleThread` (.cu:[1040](src/cuontheFly.cu#L1040)) | `solve_fKu_pDegreeThread` (.cu:[1093](src/cuontheFly.cu#L1093)) |
 |---|---|---|
@@ -149,13 +152,13 @@ Each fKu kernel calls its own copy of the sum-factorization helpers. Indented ro
 | copy of R (inside the swaps) | `getRcopy_kernel` [.cuh:424](inc/cuontheFly.cuh#L424) | written inline |
 | shared by both | `createLocationMapcuda` [:1764](src/cuontheFly.cu#L1764) (uses `arangecu` [:1787](src/cuontheFly.cu#L1787)), `slice_kernel` [:1821](src/cuontheFly.cu#L1821) | same |
 
-`alg_82_kernel_singleThread` also runs in every path: the mass kernel `solve_Mass_singleThread` calls it once at setup.
+`alg_82_kernel_singleThread` also runs in every path, because the mass kernel calls it once at setup.
 
-**Scratch memory.** The two families get their working arrays differently. `solve_fKu_singleThread` keeps the element data in fixed-size per-thread arrays (`MAX_PSIZE`), but three of its helpers allocate scratch arrays with device-side `new` and free them again on every call: `alg_57_kernel_singleThread` (four arrays), `swapaxes_copy_kernel_singleThread` and `swapaxes_inplace_kernel_singleThread`. The `pDegreeThread` family uses only fixed-size `__shared__` arrays sized by `MAX_pD`, one set per block, and never allocates on the device heap. Allocating inside the time loop costs time in `cu_singleThread` (not measured separately), and it is why `compute-sanitizer --tool memcheck` with device-heap tracking exceeds the laptop's kernel time limit for `cu_singleThread`.
+**Scratch memory.** The two versions get their working arrays differently. `solve_fKu_singleThread` keeps the element data in fixed-size per-thread arrays (`MAX_PSIZE`), but three of its helpers allocate scratch with device-side `new` and free it again on every call: `alg_57_kernel_singleThread` (four arrays), `swapaxes_copy_kernel_singleThread` and `swapaxes_inplace_kernel_singleThread`. The `pDegreeThread` version only uses fixed-size `__shared__` arrays sized by `MAX_pD`, one set per block, and never touches the device heap. The allocations inside the time loop cost `cu_singleThread` time (I haven't measured how much). They are also why `compute-sanitizer --tool memcheck` with device-heap tracking runs into the laptop's kernel time limit for `cu_singleThread`.
 
 ## All names by version
 
-### `singleThread`: only the version with one thread per element
+### `singleThread` (one thread per element)
 
 | Name | Kind | Defined | Called from |
 |---|---|---|---|
@@ -166,7 +169,7 @@ Each fKu kernel calls its own copy of the sum-factorization helpers. Indented ro
 | `solve_w_eq_2d_decreaseGrid_singleThread` | host entry | .cu:[81](src/cuontheFly.cu#L81) | [spectral01.cu:63](../drivers/cuda/spectral01.cu#L63) |
 | device helpers | | | left column of the fKu table above |
 
-### `pDegreeThread`: only the version with $(p+1)^2$ threads per element
+### `pDegreeThread` ($(p+1)^2$ threads per element)
 
 | Name | Kind | Defined | Called from |
 |---|---|---|---|
@@ -177,7 +180,7 @@ Each fKu kernel calls its own copy of the sum-factorization helpers. Indented ro
 | `solve_w_eq_2d_decreaseGrid_pDegreeThread` | host entry | .cu:[103](src/cuontheFly.cu#L103) | nobody |
 | device helpers | | | right column of the fKu table above |
 
-### `gpu`: every path
+### `gpu` (every path)
 
 | Name | Kind | Defined | Called from |
 |---|---|---|---|
@@ -206,28 +209,22 @@ Each fKu kernel calls its own copy of the sum-factorization helpers. Indented ro
 
 ## CPU helpers in `cubase`
 
-[inc/cubase.hpp](inc/cubase.hpp) runs on the CPU and has two parts.
+[inc/cubase.hpp](inc/cubase.hpp) runs on the CPU and has two parts:
 
 | Namespace | What | Main names | Used by |
 |---|---|---|---|
 | `cie::otFlyGPU` | builds B, Bdiff, G and W before they go to the GPU | `get_ShapesDiffcu`, `ShapeFunctionFactor`, `kron_flat`, `concatenate_flat`; also `kroncu`, `concatenate_matrices`, `arangecu`, `slicecu` and smaller helpers | `initialize_spectral_gpu`, test wrappers |
 | `cie::otFlyGPU::reference` | CPU versions of the algorithms on the GPU memory layout, to check GPU results | `compute_fku_ref`, `compute_Mass_ref`, `alg_57_flat`, `alg_57_matrices`, `alg_82_flat`, `alg_82_matrices`, `alg_84_flat`, `alg_84_mergeBd_flat` | unit tests, `roofline_cuda --verify` |
 
-The GPU solver never calls anything in `reference`. Each algorithm therefore exists three times: in `spectralcm/src/ontheFly.cpp` for the CPU solver, in `reference` as the check, and in `cuontheFly.cu` for the GPU.
+The GPU solver never calls anything in `reference`. So each algorithm exists three times: in `spectralcm/src/ontheFly.cpp` for the CPU solver, in `reference` as the check, and in `cuontheFly.cu` for the GPU.
 
-
-### Names that do not follow the rule (yet)
+### Names that don't follow the rule (yet)
 
 | Where | Name | Problem |
 |---|---|---|
-| fKu table, left column | `getPfraction_kernel`, `getRcopy_kernel`, `matvec_kernel`, `vectorwise_mul`, `vectorwise_sum` | single-thread helpers without a twin; kept as plain helpers by decision (2026-10-14) |
-
+| fKu table, left column | `getPfraction_kernel`, `getRcopy_kernel`, `matvec_kernel`, `vectorwise_mul`, `vectorwise_sum` | single-thread helpers with no `pDegreeThread` twin; I decided to keep them as plain helpers (2026-10-14) |
 
 <!-- ## Measured performance moved from readme.md
-
-### 6.5 The GPU time loop 
-<!-- Todo: MOVE i think all this sub chapter can be taken to cuda_spectral/solver.md. -->
-
 
 Kernel time split for `cu_pDegreeThread` at 80×80, $p=4$, 200 steps (`nvprof`, measured 2026-10-08 with the code before the rename and before the `alg_57` rewrite; current kernel names):
 
@@ -237,4 +234,5 @@ Kernel time split for `cu_pDegreeThread` at 80×80, $p=4$, 200 steps (`nvprof`, 
 | `solve_Mass_singleThread` (once, one thread per element) | 3.3 % | 51.6 ms |
 | `solve_u_it_gpu` (update) | 0.5 % | 36.6 µs per step |
 | `u_rotate_gpu` | 0.2 % | 13.5 µs per step |
-| memory copies | < 0.01 % | | -->
+| memory copies | < 0.01 % | |
+-->

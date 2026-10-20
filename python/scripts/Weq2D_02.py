@@ -221,7 +221,8 @@ def main(argv=None):
         t0 = time.perf_counter()
         with stdout_to(base + ".log") if args.quiet else contextlib.nullcontext():
             params.solve(SOLVERS[args.solver], csv)
-        solver_line += f"  ·  solved in {time.perf_counter() - t0:.2f} s"
+        elapsed = time.perf_counter() - t0
+        solver_line += f"  ·  solved in {elapsed:.2f} s"
         command = (f"python3 Weq2D_02.py --run --solver {args.solver}"
                    + (f" --cpus {args.cpus}" if args.solver == "omp" else "")
                    + f" --ne {case.nelements[0]} --pD {p} --nsteps {case.nsteps} --duration {case.duration:g}")
@@ -236,6 +237,13 @@ def main(argv=None):
         frames.append(len(u) - 1)
 
     gif = base + ".gif"
+    result = [f"read      {len(u)} snapshots × {ndof:,} DoFs, u from {u.min():+.4f} to {u.max():+.4f}",
+              f"gif       {os.path.basename(gif)}, {len(frames)} frames"]
+    if args.run:
+        result.insert(0, f"solved    {elapsed:.2f} s (wall time of the solve call, set-up included)")
+        with open(base + ".log", "a") as f:   # written before rendering, so it is there even if rendering fails
+            f.write("\n--- result ---\n" + "\n".join(result) + "\n")
+    print("\n".join(result))
     print(f"rendering {len(frames)} frames -> {gif}")
     anim = make_animation(u, params, frames, dt, (solver_line, case_line), command, gif, args.vmax, args.dpi)
     if args.show:
