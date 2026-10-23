@@ -146,68 +146,53 @@ struct lambdaft_kernel {
 // end of lambda functions
 
 
+// solve_fKu_* as a plain kernel pointer, so one host loop can launch either version
 template <typename ValueType>
-__host__ void solve_w_eq_2d_cu_singleThread( 
+using fKu_kernel_gpu = void (*)(size_t, size_t, size_t, size_t, size_t, size_t, size_t, size_t, ValueType,
+    lambdaft_kernel<ValueType>, lambdafx_kernel<ValueType>,
+    lambdaXY_kernel<ValueType>, lambdaXY_kernel<ValueType>,
+    ValueType*, ValueType*, ValueType*, ValueType*, ValueType*, ValueType*, ValueType*);
+
+template <typename ValueType>
+struct solverStruct {
+    fKu_kernel_gpu<ValueType> fKu;  // solve_fKu_singleThread<...> or solve_fKu_pDegreeThread<...>
+    size_t threads;                 // threads per element: 1 or (p+1)^2
+};
+// Fills solverStruct for version "cu_singleThread" or "cu_pDegreeThread"; throws std::invalid_argument otherwise.
+template <typename ValueType>
+__host__ solverStruct<ValueType> get_solverStruct_gpu(std::string version, size_t polynomialDegree);
+
+template <typename ValueType>
+__host__ void solve_w_eq_2d_gpuSolver(
     const cie::spectralkernel::Params& params,
-    bool w,std::string name);
+    bool w,std::string name,
+    solverStruct<ValueType> solver);
 
 template <typename ValueType>
-
-__host__ void solve_w_eq_2d_cu_pDegreeThread( 
-    const cie::spectralkernel::Params& params,
-    bool w,std::string name);
-
-
-template <typename ValueType>
-__host__ void solve_w_eq_2d_decreaseGrid_singleThread(const cie::spectralkernel::Params& params,
+__host__ void solve_w_eq_2d_decreaseGrid_gpuSolver(const cie::spectralkernel::Params& params,
     bool w,
     std::string name, 
-    std::string storage_type);
-
-
-template <typename ValueType>
-__host__ void solve_w_eq_2d_decreaseGrid_pDegreeThread(const cie::spectralkernel::Params& params,
-    bool w,
-    std::string name, 
-    std::string storage_type);
+    std::string storage_type,
+    solverStruct<ValueType> solver);
 
 template <typename ValueType>
-__host__ void compute_invM_fKu_cu_singleThread(std::vector<ValueType>& u_host,
+__host__ void compute_invM_fKu_gpuSolver(std::vector<ValueType>& u_host, 
     const cie::spectralkernel::Params& params,
     bool write,
     std::string filename,
-    std::stringstream& debug_buffer);
+    std::stringstream& debug_buffer, 
+    solverStruct<ValueType> solver
+);
 
+// Time loop only (fKu, update, rotate); setup and teardown stay in preinitialize_invM_fKu_gpu and finish_simulation_gpu.
 template <typename ValueType>
-__host__ void compute_invM_fKu_cu_pDegreeThread(std::vector<ValueType>& u_host,
-    const cie::spectralkernel::Params& params,
-    bool write,
-    std::string filename,
-    std::stringstream& debug_buffer);
-
-template <typename ValueType>
-__host__ void compute_fKu_cu_singleThread(std::vector<ValueType>& u_host,
-        const cie::spectralkernel::Params& params, 
-        spectral_pointers<ValueType>& sp,
-        lambdaXY_kernel<ValueType> MapX,
-        lambdaXY_kernel<ValueType> MapY,
-        lambdafx_kernel<ValueType> fx,
-        lambdaft_kernel<ValueType> ft_k,
-        std::stringstream& debug_buffer,
-        bool write,std::string filename
-    );
-
-template <typename ValueType>
-__host__ void compute_fKu_cu_pDegreeThread(std::vector<ValueType>& u_host,
-    const cie::spectralkernel::Params& params, 
-        spectral_pointers<ValueType>& sp,
-        lambdaXY_kernel<ValueType> MapX,
-        lambdaXY_kernel<ValueType> MapY,
-        lambdafx_kernel<ValueType> fx,
-        lambdaft_kernel<ValueType> ft_k,
-        std::stringstream& debug_buffer,
-        bool write,std::string filename
-    );
+__host__ void benchmark_fKu_gpu(const cie::spectralkernel::Params& params,
+    spectral_pointers<ValueType>& sp,
+    lambdaXY_kernel<ValueType> MapX,
+    lambdaXY_kernel<ValueType> MapY,
+    lambdafx_kernel<ValueType> fx,
+    lambdaft_kernel<ValueType> ft_k,
+    solverStruct<ValueType> solver);
 
 
 template <typename ValueType>
@@ -389,7 +374,7 @@ template <typename ValueType>
 __device__ void matvec_kernel(ValueType* result, ValueType* Mat, ValueType* vector, size_t r, size_t c);
 
 template <typename ValueType>
-__device__ ValueType* swapaxes_copy_kernel_singleThread(const ValueType* B,size_t dim, size_t row, size_t col);
+__device__ void swapaxes_copy_kernel_singleThread(ValueType* A, const ValueType* B,size_t dim, size_t row, size_t col);
 
 template <typename ValueType>
 __device__ void swapaxes_copy_kernel_pDegreeThread(ValueType* A, const ValueType* B,

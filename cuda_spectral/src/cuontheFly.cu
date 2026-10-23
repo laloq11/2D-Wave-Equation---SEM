@@ -15,6 +15,8 @@
 #include <iomanip>
 #include <vector>
 #include <string>
+#include <functional>
+
 // #define MAX_PSIZE 72 // //Max 
 #define MAX_PSIZE (MAX_pD + 1)*(MAX_pD + 1)*2  
 // constexpr int MAX_PSIZE = 72; //(5+1)*(5+1)*2+2
@@ -28,60 +30,59 @@ template struct spectral_pointers<float>;
 template struct spectral_pointers<double>;
 
 
+
 template struct GPUpackage<float>;
 template struct GPUpackage<double>;
 
 template <typename ValueType>
-__host__ void solve_w_eq_2d_cu_singleThread( //solve_w_eq_2d_cu_singleThread
+__host__ solverStruct<ValueType> get_solverStruct_gpu(std::string version, size_t polynomialDegree) {
+    // version takes the --solver names: cu_singleThread or cu_pDegreeThread
+    if (version == "cu_singleThread")
+        return {solve_fKu_singleThread<lambdaft_kernel<ValueType>,
+            lambdafx_kernel<ValueType>,
+            lambdaXY_kernel<ValueType>, ValueType>,
+            1};
+    if (version == "cu_pDegreeThread")
+        return {solve_fKu_pDegreeThread<lambdaft_kernel<ValueType>,
+            lambdafx_kernel<ValueType>,
+            lambdaXY_kernel<ValueType>, ValueType>,
+            (polynomialDegree+1)*(polynomialDegree+1)};
+    throw std::invalid_argument("get_solverStruct_gpu: unknown version \"" + version
+                                + "\"; valid: cu_singleThread, cu_pDegreeThread");
+}
+template __host__ solverStruct<float> get_solverStruct_gpu<float>(std::string, size_t);
+
+
+
+template <typename ValueType>
+__host__ void solve_w_eq_2d_gpuSolver( //solve_w_eq_2d_cu_singleThread
     const cie::spectralkernel::Params& params,
-    bool w,std::string name) {
+    bool w,std::string name,  
+        solverStruct<ValueType> solver
+) {
 
     std::stringstream debug_buffer;
     debug_buffer << "\t--\tInitializing parameters..." << std::endl;
-    // cie::spectralkernel::Params params = cie::spectralkernel::w_eq_2d_decreaseGrid();
     debug_buffer << "\t--\tInitializing CUDA solver..." << std::endl;
     debug_buffer<<"Total DOF is: "<<params.ndofglobal()<<std::endl;
     std::vector<ValueType> u(params.ndofglobal());
-    compute_invM_fKu_cu_singleThread<ValueType>(u,params, w,name,debug_buffer);
+    compute_invM_fKu_gpuSolver<ValueType>(u,params, w,name,debug_buffer, solver);
     debug_buffer << "\t--\tExiting program..." << std::endl;
     debug_buffer<<"Total DOF is: "<<params.ndofglobal()<<std::endl;
     std::cout<<debug_buffer.str();
 
 }
-template __host__ void solve_w_eq_2d_cu_singleThread<float>(
-    const cie::spectralkernel::Params& ,bool,std::string);
-
-
-
-
-template <typename ValueType>
-__host__ void solve_w_eq_2d_cu_pDegreeThread( 
-    const cie::spectralkernel::Params& params,
-    bool w,std::string name) {
-        /* done: create a compute_invM_fKu_cu_pDegreeThread*/
-
-    std::stringstream debug_buffer;
-    debug_buffer << "\t--\tInitializing parameters..." << std::endl;
-    // cie::spectralkernel::Params params = cie::spectralkernel::w_eq_2d_decreaseGrid();
-    debug_buffer << "\t--\tInitializing CUDA solver..." << std::endl;
-    debug_buffer<<"Total DOF is: "<<params.ndofglobal()<<std::endl;
-    std::vector<ValueType> u(params.ndofglobal());
-    compute_invM_fKu_cu_pDegreeThread<ValueType>(u,params, w,name,debug_buffer);
-    debug_buffer << "\t--\tExiting program..." << std::endl;
-    debug_buffer<<"Total DOF is: "<<params.ndofglobal()<<std::endl;
-    std::cout<<debug_buffer.str();
-
-}
-template __host__ void solve_w_eq_2d_cu_pDegreeThread<float>(
-    const cie::spectralkernel::Params& ,bool,std::string);
+template __host__ void solve_w_eq_2d_gpuSolver<float>(
+    const cie::spectralkernel::Params& ,bool,std::string, solverStruct<float>);
 
 
 
 template <typename ValueType>
-__host__ void solve_w_eq_2d_decreaseGrid_singleThread(const cie::spectralkernel::Params& params,
+__host__ void solve_w_eq_2d_decreaseGrid_gpuSolver(const cie::spectralkernel::Params& params,
     bool w,
     std::string name, 
-    std::string storage_type) {
+    std::string storage_type,
+    solverStruct<ValueType> solver) {
     /*
         Still to define correctly how storage_type will work. 
     */
@@ -90,41 +91,23 @@ __host__ void solve_w_eq_2d_decreaseGrid_singleThread(const cie::spectralkernel:
 
     debug_buffer << "\t--\tInitializing singleThread solver..." << std::endl;
     std::vector<ValueType> u(params.ndofglobal());
-    compute_invM_fKu_cu_singleThread<ValueType>(u,params, w,name, debug_buffer);
+    // compute_invM_fKu_cu_singleThread<ValueType>(u,params, w,name, debug_buffer);
+    compute_invM_fKu_gpuSolver<ValueType>(u,params, w,name, debug_buffer, solver);
     debug_buffer << "\t--\tExiting program..." << std::endl;
     std::cout<<debug_buffer.str();
 
 }
-template __host__ void solve_w_eq_2d_decreaseGrid_singleThread<float>(const cie::spectralkernel::Params&,
-    bool, std::string, std::string);
-
-
-template <typename ValueType>
-__host__ void solve_w_eq_2d_decreaseGrid_pDegreeThread(const cie::spectralkernel::Params& params,
-    bool w,
-    std::string name, 
-    std::string storage_type) {
-    /*
-    Still to define correctly how storage_type will work. 
-    */
-
-    std::stringstream debug_buffer;
-    debug_buffer << "\t--\tInitializing pDegreeThread solver..." << std::endl;
-    std::vector<ValueType> u(params.ndofglobal());
-    compute_invM_fKu_cu_pDegreeThread<ValueType>(u,params, w,name, debug_buffer);
-    debug_buffer << "\t--\tExiting program..." << std::endl;
-    std::cout<<debug_buffer.str();
-
-}
-template __host__ void solve_w_eq_2d_decreaseGrid_pDegreeThread<float>(const cie::spectralkernel::Params&,
-    bool, std::string, std::string);
+template __host__ void solve_w_eq_2d_decreaseGrid_gpuSolver<float>(const cie::spectralkernel::Params&,
+    bool, std::string, std::string, solverStruct<float>);
 
 template <typename ValueType>
-__host__ void compute_invM_fKu_cu_singleThread(std::vector<ValueType>& u_host, //compute_invM_fKu_cu_singleThread
+__host__ void compute_invM_fKu_gpuSolver(std::vector<ValueType>& u_host, 
     const cie::spectralkernel::Params& params,
     bool write,
     std::string filename,
-    std::stringstream& debug_buffer) {
+    std::stringstream& debug_buffer, 
+    solverStruct<ValueType> solver
+) {
         // u[it]
         // params containing all case data
     size_t polynomialDegree = params.polynomialDegree();
@@ -137,58 +120,27 @@ __host__ void compute_invM_fKu_cu_singleThread(std::vector<ValueType>& u_host, /
                             / threadsPerBlock2;
 
 
-    debug_buffer<<"Starting CUDA solver..."<<std::endl;
-
     spectral_pointers<ValueType> sp;
 
-    initialize_spectral_gpu<ValueType>(sp,params);
+    // setup shared with the benchmark: allocate, mass vector, zero the time levels
+    preinitialize_invM_fKu_gpu<ValueType>(params, sp, debug_buffer);
 
     ValueType dx= params.dx();
     ValueType dy= params.dy();
     ValueType sS= params.sigmaS();
     ValueType sT= params.sigmaT();
     ValueType t0= params.t0();
-    lambdaXY_kernel<ValueType> MapX{dx}; 
-    lambdaXY_kernel<ValueType> MapY{dy}; 
-    lambdafx_kernel<ValueType> fx{sS}; 
-    lambdaft_kernel<ValueType> ft_k{sT,t0}; 
-    
-    debug_buffer << "\t--\tInitializing solver..." << std::endl;
+    lambdaXY_kernel<ValueType> MapX{dx};
+    lambdaXY_kernel<ValueType> MapY{dy};
+    lambdafx_kernel<ValueType> fx{sS};
+    lambdaft_kernel<ValueType> ft_k{sT,t0};
 
-    debug_buffer<<"\t\t\t***  Mass matrix ***"<<std::endl;
-
-    solve_Mass_singleThread<ValueType><<<nelements,1>>>(dim,
-        polynomialDegree,
-        params.ndofelement(),
-        params.ndofdirection()[1],
-        params.nelements(0),
-        nelements,
-        ndofglobal,
-        sp.d_B,
-        sp.d_G,
-        sp.d_mu
-    );
-    ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-    ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-    debug_buffer<<"\t\t\t***  Mass matrix *** --- DONE"<<std::endl;
-
-    debug_buffer<<"\t\t\t***   iteration variables solver ***"<<std::endl;
-    init_values_kernel_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-        sp.d_u_tm1,sp.d_fku,ndofglobal);
-    ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-
-    ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());    
-    debug_buffer<<"\t\t\t***   iteration variables solver ***--- DONE"<<std::endl;
-
-    debug_buffer << "\t--\tStarting solver... Running "<< params.nsteps()<< std::endl;
     for (size_t it = 2; it < (params.nsteps()+1); ++it) {
 
         // ValueType ft_dt = params.ft(it * params.dt());
 
-        solve_fKu_singleThread<lambdaft_kernel<ValueType>,
-        lambdafx_kernel<ValueType>,
-        lambdaXY_kernel<ValueType>,
-        ValueType><<<nelements,1>>>(it,dim,
+        solver.fKu<<<nelements,solver.threads>>>(it,
+        dim,
         polynomialDegree,
         params.ndofelement(),
         params.ndofdirection()[1],
@@ -206,18 +158,19 @@ __host__ void compute_invM_fKu_cu_singleThread(std::vector<ValueType>& u_host, /
         sp.d_u_tm1,
         sp.d_fku
         );
+
         ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
 
         ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
 
         
-        solve_u_it_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
+        solve_u_it_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2, // we are not using only 1
             sp.d_u_tm1,sp.d_fku,sp.d_mu,ndofglobal);
         ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
 
         ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
 
-        u_rotate_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
+        u_rotate_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2, // we are not using only 1
                 sp.d_u_tm1,sp.d_fku,ndofglobal);
         ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
 
@@ -239,139 +192,12 @@ __host__ void compute_invM_fKu_cu_singleThread(std::vector<ValueType>& u_host, /
 
     terminate_spectral_gpu(sp);
 }
-template __host__ void compute_invM_fKu_cu_singleThread<float>(
+template __host__ void compute_invM_fKu_gpuSolver<float>(
     std::vector<float>& ,const cie::spectralkernel::Params&,
     bool,
     std::string, 
-    std::stringstream&);
-
-template <typename ValueType>
-__host__ void compute_invM_fKu_cu_pDegreeThread(std::vector<ValueType>& u_host, //compute_invM_fKu_cu_singleThread
-    const cie::spectralkernel::Params& params,
-    bool write,
-    std::string filename,
-    std::stringstream& debug_buffer) {
-        // u[it]
-        // params containing all case data
-    size_t polynomialDegree = params.polynomialDegree();
-    size_t P_size = (polynomialDegree+1) * (polynomialDegree+1);
-    size_t ndofglobal = params.ndofglobal();
-    size_t nelements = params.nelements(0)*params.nelements(1);
-    size_t dim =2;
-
-    int threadsPerBlock2 = 256;
-    int blocksPerGrid2 = (ndofglobal + threadsPerBlock2 - 1)
-                            / threadsPerBlock2;
-
-
-    debug_buffer<<"Starting CUDA solver..."<<std::endl;
-
-    spectral_pointers<ValueType> sp;
-
-    initialize_spectral_gpu<ValueType>(sp,params);
-
-    ValueType dx= params.dx();
-    ValueType dy= params.dy();
-    ValueType sS= params.sigmaS();
-    ValueType sT= params.sigmaT();
-    ValueType t0= params.t0();
-    lambdaXY_kernel<ValueType> MapX{dx}; 
-    lambdaXY_kernel<ValueType> MapY{dy}; 
-    lambdafx_kernel<ValueType> fx{sS}; 
-    lambdaft_kernel<ValueType> ft_k{sT,t0}; 
-    
-    debug_buffer << "\t--\tInitializing solver..." << std::endl;
-
-    debug_buffer<<"\t\t\t***  Mass matrix ***"<<std::endl;
-
-    solve_Mass_singleThread<ValueType><<<nelements,1>>>(dim,
-        polynomialDegree,
-        params.ndofelement(),
-        params.ndofdirection()[1],
-        params.nelements(0),
-        nelements,
-        ndofglobal,
-        sp.d_B,
-        sp.d_G,
-        sp.d_mu
-    );
-    ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-    ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-    debug_buffer<<"\t\t\t***  Mass matrix *** --- DONE"<<std::endl;
-
-    debug_buffer<<"\t\t\t***   iteration variables solver ***"<<std::endl;
-    init_values_kernel_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-        sp.d_u_tm1,sp.d_fku,ndofglobal);
-    ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-
-    ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());    
-    debug_buffer<<"\t\t\t***   iteration variables solver ***--- DONE"<<std::endl;
-
-    debug_buffer << "\t--\tStarting solver... Running "<< params.nsteps()<< std::endl;
-    for (size_t it = 2; it < (params.nsteps()+1); ++it) {
-
-        // ValueType ft_dt = params.ft(it * params.dt());
-
-        solve_fKu_pDegreeThread<lambdaft_kernel<ValueType>,
-        lambdafx_kernel<ValueType>,
-        lambdaXY_kernel<ValueType>,
-        ValueType><<<nelements,P_size>>>(it,dim,
-        polynomialDegree,
-        params.ndofelement(),
-        params.ndofdirection()[1],
-        params.nelements(0),
-        nelements,
-        ndofglobal, params.dt(),
-        ft_k,
-        fx,
-        MapX,
-        MapY,
-        sp.gllCoords,
-        sp.d_B,sp.d_Bdiff,
-        sp.d_G,
-        sp.d_M,
-        sp.d_u_tm1,
-        sp.d_fku
-        );
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-
-        
-        solve_u_it_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-            sp.d_u_tm1,sp.d_fku,sp.d_mu,ndofglobal);
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-
-        u_rotate_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-                sp.d_u_tm1,sp.d_fku,ndofglobal);
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-        
-        if (it % params.samplingFrecuency() == 0) {
-                intermediate_u_gpu(u_host.data(),ndofglobal,sp);
-                
-                debug_buffer<< "Iteration:\t" << it
-                << "\t with u_(" << ndofglobal / 2
-                << ")= " << u_host[ndofglobal / 2] << std::endl;
-                
-                if (write){
-                debug_buffer<<"\t\t Initiating write..."<<filename<<std::endl;
-                writeU_inter<ValueType>(u_host,filename);
-            }
-        }
-    }
-
-    terminate_spectral_gpu(sp);
-}
-template __host__ void compute_invM_fKu_cu_pDegreeThread<float>(
-    std::vector<float>& ,const cie::spectralkernel::Params&,
-    bool,
-    std::string, 
-    std::stringstream&);
-
+    std::stringstream&,
+    solverStruct<float>);
 
 
 template <typename ValueType>
@@ -443,17 +269,15 @@ template __host__ void preinitialize_invM_fKu_gpu<float>(
                 spectral_pointers<float>& ,std::stringstream&);
 
 
+
 template <typename ValueType>
-__host__ void compute_fKu_cu_singleThread(std::vector<ValueType>& u_host,
-    const cie::spectralkernel::Params& params, 
+__host__ void benchmark_fKu_gpu(const cie::spectralkernel::Params& params,
         spectral_pointers<ValueType>& sp,
         lambdaXY_kernel<ValueType> MapX,
         lambdaXY_kernel<ValueType> MapY,
         lambdafx_kernel<ValueType> fx,
         lambdaft_kernel<ValueType> ft_k,
-        std::stringstream& debug_buffer,
-        bool write,std::string filename
-
+        solverStruct<ValueType> solver
     ){
     size_t polynomialDegree = params.polynomialDegree();
     size_t ndofglobal = params.ndofglobal();
@@ -465,10 +289,7 @@ __host__ void compute_fKu_cu_singleThread(std::vector<ValueType>& u_host,
 
     for (size_t it = 2; it < (params.nsteps()+1); ++it) {
 
-        solve_fKu_singleThread<lambdaft_kernel<ValueType>,
-        lambdafx_kernel<ValueType>,
-        lambdaXY_kernel<ValueType>,
-        ValueType> <<<nelements,1>>>(it,
+        solver.fKu<<<nelements,solver.threads>>>(it,
         dim,
         polynomialDegree,
         params.ndofelement(),
@@ -504,119 +325,16 @@ __host__ void compute_fKu_cu_singleThread(std::vector<ValueType>& u_host,
             ndofglobal);
         ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
         ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-        if (it % params.samplingFrecuency() == 0) {
-            //     intermediate_u_gpu(u_host.data(),ndofglobal,sp);
-
-            //     debug_buffer<< "Iteration:\t" << it
-            //     << "\t with u_(" << ndofglobal / 2
-            //     << ")= " << u_host[ndofglobal / 2] << std::endl;
-            //     if (write){
-            //         debug_buffer<<"\t\t Initiating write..."<<filename<<std::endl;
-            //         writeU_inter<ValueType>(u_host,filename);
-            // }
-        }
     }
 }
-
-template __host__ void compute_fKu_cu_singleThread<float>(
-    std::vector<float>& ,const cie::spectralkernel::Params&,
+template __host__ void benchmark_fKu_gpu<float>(
+    const cie::spectralkernel::Params&,
     spectral_pointers<float>& ,
     lambdaXY_kernel<float>,
     lambdaXY_kernel<float>,
     lambdafx_kernel<float>,
     lambdaft_kernel<float>,
-    std::stringstream&,
-    bool,std::string);
-
-
-
-
-
-template <typename ValueType>
-__host__ void compute_fKu_cu_pDegreeThread(std::vector<ValueType>& u_host,
-    const cie::spectralkernel::Params& params, 
-        spectral_pointers<ValueType>& sp,
-        lambdaXY_kernel<ValueType> MapX,
-        lambdaXY_kernel<ValueType> MapY,
-        lambdafx_kernel<ValueType> fx,
-        lambdaft_kernel<ValueType> ft_k,
-        std::stringstream& debug_buffer,
-        bool write,std::string filename
-    ){
-    size_t polynomialDegree = params.polynomialDegree();
-    size_t P_size = (polynomialDegree+1) * (polynomialDegree+1);
-    size_t ndofglobal = params.ndofglobal();
-    size_t nelements = params.nelements(0)*params.nelements(1);
-    size_t dim =2;
-    int threadsPerBlock2 = 256;
-    int blocksPerGrid2 = (ndofglobal + threadsPerBlock2 - 1)
-                            / threadsPerBlock2;
-
-    for (size_t it = 2; it < (params.nsteps()+1); ++it) {
-
-        solve_fKu_pDegreeThread<lambdaft_kernel<ValueType>,
-        lambdafx_kernel<ValueType>,
-        lambdaXY_kernel<ValueType>,
-        ValueType> <<<nelements,P_size>>>(it,
-        dim,
-        polynomialDegree,
-        params.ndofelement(),
-        params.ndofdirection()[1],
-        params.nelements(0),
-        nelements,
-        ndofglobal, params.dt(),
-        ft_k,
-        fx,
-        MapX,
-        MapY,
-        sp.gllCoords,
-        sp.d_B,sp.d_Bdiff,
-        sp.d_G,
-        sp.d_M,
-        sp.d_u_tm1,
-        sp.d_fku
-        );
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-
-        solve_u_it_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-            sp.d_u_tm1,
-            sp.d_fku,
-            sp.d_mu,
-            ndofglobal);
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-
-        u_rotate_gpu<<<blocksPerGrid2, threadsPerBlock2>>>(sp.d_u_tm2,
-            sp.d_u_tm1,
-            sp.d_fku,
-            ndofglobal);
-        ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
-        ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
-        if (it % params.samplingFrecuency() == 0) {
-            //     intermediate_u_gpu(u_host.data(),ndofglobal,sp);
-
-            //     debug_buffer<< "Iteration:\t" << it
-            //     << "\t with u_(" << ndofglobal / 2
-            //     << ")= " << u_host[ndofglobal / 2] << std::endl;
-            //     if (write){
-            //         debug_buffer<<"\t\t Initiating write..."<<filename<<std::endl;
-            //         writeU_inter<ValueType>(u_host,filename);
-            // }
-        }
-    }
-}
-
-template __host__ void compute_fKu_cu_pDegreeThread<float>(
-    std::vector<float>& ,const cie::spectralkernel::Params&,
-    spectral_pointers<float>& ,
-    lambdaXY_kernel<float>,
-    lambdaXY_kernel<float>,
-    lambdafx_kernel<float>,
-    lambdaft_kernel<float>,
-    std::stringstream&,
-    bool,std::string);
-
+    solverStruct<float>);
 
 template <typename ValueType>
 __host__ void finish_simulation_gpu(std::vector<ValueType>& u_host,
@@ -754,6 +472,9 @@ __host__ void initialize_spectral_gpu(spectral_pointers<ValueType>& sp,
         sizeof(ValueType) * ndofglobal ) );
 
 
+    // the mass kernel adds into mu with atomicAdd, so mu must start at zero
+    ASSERT_NO_CUDA_ERRORS(cudaMemset(sp.d_mu, 0,
+        sizeof(ValueType) * ndofglobal ) );
 
    //copy data from Host to Device
     ASSERT_NO_CUDA_ERRORS(cudaMemcpy(sp.d_B, B,
@@ -1231,6 +952,11 @@ void test_mass_singleThread(std::vector<ValueType>& mu,
     ASSERT_NO_CUDA_ERRORS(cudaMalloc(&d_G, sizeof(ValueType) * P_size ) );
     ASSERT_NO_CUDA_ERRORS(cudaMalloc(&d_mu, sizeof(ValueType) * ndofglobal ) );
 
+    // the mass kernel adds into mu with atomicAdd, so mu must start at zero
+    ASSERT_NO_CUDA_ERRORS(cudaMemset(d_mu, 0,
+        sizeof(ValueType) * ndofglobal ) );
+
+
     //copy data from Host to Device
     ASSERT_NO_CUDA_ERRORS(cudaMemcpy(d_B, B,
     sizeof(ValueType) * (P_size*2),
@@ -1296,11 +1022,11 @@ __global__ void solve_Mass_singleThread(size_t dim,size_t pD, size_t ndofelement
         size_t jelement = blockid / nelements_0;
         
         if (ielement+jelement*nelements_0 <nelements){
-            size_t* locationMap = new size_t[ndofelement];
+            size_t locationMap[MAX_PSIZE];
 
             createLocationMapcuda(locationMap,pD,ndofdirection1,
                 ielement,jelement);
-            ValueType* M_el= new ValueType[ndofelement];
+            ValueType M_el[MAX_PSIZE];
             ValueType v = 1.0;
             for (size_t m = 0;m<ndofelement;m++) M_el[m]=v;      
             alg_82_kernel_singleThread(dim,B,G,M_el,pD);
@@ -1308,9 +1034,6 @@ __global__ void solve_Mass_singleThread(size_t dim,size_t pD, size_t ndofelement
                 atomicAdd(&mu[locationMap[i]], M_el[i]);
             }
             __syncthreads();
-
-            delete[] locationMap;
-            delete[] M_el;
     }
 }
         
@@ -1491,9 +1214,9 @@ __device__ void alg_82_kernel_singleThread(const size_t D,
     size_t vsize=(pD+1)*(pD+1);
     alg_57_kernel_singleThread(D, B, v,pD,vsize);
     vectorwise_mul(G,v,vsize);
-    ValueType* B2 = swapaxes_copy_kernel_singleThread(B,D,pD+1,pD+1);
+    ValueType B2[MAX_PSIZE];
+    swapaxes_copy_kernel_singleThread(B2,B,D,pD+1,pD+1);
     alg_57_kernel_singleThread(D, B2,v,pD,vsize);
-    delete[] B2;
 }
 template __device__ void alg_82_kernel_singleThread<float>(const size_t, const float*, const float*, float*,size_t);
 template __device__ void alg_82_kernel_singleThread<double>(const size_t, const double*, const double*, double*,size_t);
@@ -1551,11 +1274,10 @@ __device__ void alg_57_kernel_singleThread(const size_t D,
                     const ValueType* R, 
                     ValueType* P,size_t pD, size_t p_size) {
     size_t s = pow(pD+1, D);
-    ValueType* T= new ValueType[p_size];//(P.size(), 0.0);
-    ValueType* Pfraction = new ValueType[pD+1];
-    ValueType* Rfraction= new ValueType[(pD+1)*(pD+1)];
-    //nullptr;//new ValueType*[pD+1];
-    ValueType* val_T= new ValueType[pD+1];
+    ValueType T[MAX_PSIZE];//(P.size(), 0.0);
+    ValueType Pfraction[MAX_pD+1];
+    ValueType Rfraction[(MAX_pD+1)*(MAX_pD+1)];
+    ValueType val_T[MAX_pD+1];
 
     // genVV2(&Rfraction,pD+1,pD+1);//initialize matrix
     // std::fill(T, T + p_size, 0.0);
@@ -1574,10 +1296,6 @@ __device__ void alg_57_kernel_singleThread(const size_t D,
         }//# Fehler in Davide's Diss -> linke Seite beginnend bei j
         swappy_singleThread(P, T,p_size);
     }
-    delete[] Pfraction;
-    delete[] Rfraction; 
-    delete[] T;
-    delete[] val_T;
 }
 template __device__ void alg_57_kernel_singleThread<float>(const size_t,const  float*, float*,size_t,size_t);
 template __device__ void alg_57_kernel_singleThread<double>(const size_t,const  double*, double*,size_t,size_t);
@@ -1654,13 +1372,12 @@ template __device__ void vectorwise_sum<float>(const float*,float*, size_t);
 template __device__ void vectorwise_sum<double>(const double*,double*, size_t);
 
 template <typename ValueType>
-__device__ ValueType* swapaxes_copy_kernel_singleThread(const ValueType* B,size_t dim, size_t row, size_t col) {
+__device__ void swapaxes_copy_kernel_singleThread(ValueType* A, const ValueType* B,size_t dim, size_t row, size_t col) {
     //  trying to reproduce np.swapaxes(A,0,1);
     // this is only if t and i is the same number!!!
     //     meaning this only works for algorithm57
     // runtime_check(A.size() == A[0].size(),
         // "Dimension problem and number of Matrices not equal to number of rows!");
-    ValueType* A = new ValueType[col*row*dim];
     // std::copy(B, B + col * row * dim, A);
     getRcopy_kernel(A,B,dim,row,col);
 
@@ -1671,10 +1388,9 @@ __device__ ValueType* swapaxes_copy_kernel_singleThread(const ValueType* B,size_
             }
         }
     }
-    return A;
 }
-template __device__ float* swapaxes_copy_kernel_singleThread<float>(const float*,size_t,size_t,size_t);
-template __device__ double* swapaxes_copy_kernel_singleThread<double>(const double*,size_t,size_t,size_t);
+template __device__ void swapaxes_copy_kernel_singleThread<float>(float*,const float*,size_t,size_t,size_t);
+template __device__ void swapaxes_copy_kernel_singleThread<double>(double*,const double*,size_t,size_t,size_t);
 
 template <typename ValueType>
 __device__ void swapaxes_copy_kernel_pDegreeThread(ValueType* A, const ValueType* B,
@@ -1708,7 +1424,7 @@ __device__ void swapaxes_inplace_kernel_singleThread(ValueType* B,size_t dim, si
     //  trying to reproduce np.swapaxes(A,0,1);
     // this is only if t and i is the same number!!!
     //     meaning this only works for algorithm57
-    ValueType* A = new ValueType[col*row*dim];
+    ValueType A[MAX_PSIZE];
     getRcopy_kernel(A,B,dim,row,col);
 
     for (size_t t = 0; t < row; ++t) {
@@ -1718,7 +1434,6 @@ __device__ void swapaxes_inplace_kernel_singleThread(ValueType* B,size_t dim, si
             }
         }
     }
-    delete[] A;
 }
 template __device__ void swapaxes_inplace_kernel_singleThread<float>(float*,size_t,size_t,size_t);
 template __device__ void swapaxes_inplace_kernel_singleThread<double>(double*,size_t,size_t,size_t);

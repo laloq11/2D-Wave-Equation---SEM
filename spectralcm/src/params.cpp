@@ -112,36 +112,21 @@ Matrix Params::solve(std::string solver_type, std::string filename) {
         //returning the least possible data because writing was performed
         return u_null;
     }
-    else if (solver_type=="cu_singleThread"){
+    else if (solver_type=="cu_singleThread" || solver_type=="cu_pDegreeThread"){
         #ifdef CUDA_ON
         cie::otFlyGPU::check_polynomialDegree_gpu((*this).polynomialDegree());
-
-        std::cout << "\t--\tInitializing CUDA solver a SINGLE thread per element..." << std::endl;
-        // ontheFly solver((*this).nsteps(), (*this).ndofglobal());
-        cie::otFlyGPU::solve_w_eq_2d_cu_singleThread<float>(*this,true,filename);
+        cie::otFlyGPU::solverStruct<float> solver =
+            cie::otFlyGPU::get_solverStruct_gpu<float>(solver_type, (*this).polynomialDegree());
+        std::cout << "\t--\tInitializing CUDA solver " << solver_type << "..." << std::endl;
+        cie::otFlyGPU::solve_w_eq_2d_gpuSolver<float>(*this,true,filename, solver);
         std::cout << "\t--\tStarting solver..." << std::endl;
         Matrix u_null(1,0.0);
         return u_null;
         #else
-        throw std::runtime_error("Solver 'cu_singleThread' requires CUDA. Rebuild with CUDAToolkit available.");
+        throw std::runtime_error("Solver '" + solver_type + "' requires CUDA. Rebuild with CUDAToolkit available.");
         #endif
-
     }
-    else if (solver_type=="cu_pDegreeThread"){
-        #ifdef CUDA_ON
-        cie::otFlyGPU::check_polynomialDegree_gpu((*this).polynomialDegree());
 
-        std::cout << "\t--\tInitializing CUDA solver using (pD+1)^2 threads per element..." << std::endl;
-        // ontheFly solver((*this).nsteps(), (*this).ndofglobal());
-        cie::otFlyGPU::solve_w_eq_2d_cu_pDegreeThread<float>(*this,true,filename);
-        std::cout << "\t--\tStarting solver..." << std::endl;
-        Matrix u_null(1,0.0);
-        return u_null;
-        #else
-        throw std::runtime_error("Solver 'cu_pDegreeThread' requires CUDA. Rebuild with CUDAToolkit available.");
-        #endif
-
-    }
     else {
         throw std::invalid_argument("Params::solve: unknown solver \"" + solver_type
             + "\"; valid: ontheFly, ontheFly_omp, ontheFly_omp_write, cu_singleThread, cu_pDegreeThread");

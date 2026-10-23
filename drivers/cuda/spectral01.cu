@@ -37,7 +37,7 @@ int main(int argc, char** argv)
 {
     CLI::App app{"Operations"};
     std::string  cudaSolver = "";
-    app.add_option("--solver", cudaSolver, "Options[]");
+    app.add_option("--solver", cudaSolver, "cu_singleThread or cu_pDegreeThread");
     bool debug = false;
     app.add_option("--debug", debug, "debug print statements the result");
     static int block_size = default_block_size;
@@ -48,9 +48,7 @@ int main(int argc, char** argv)
     if ( cudaSolver == ""){
         throw std::invalid_argument("[Error] No given GPU - cuda solver ");
     }
-    if ( cudaSolver != "singleThread" || cudaSolver != "pDegreeThread"){
-        throw std::invalid_argument("[Error] Given GPU - cuda solver not valid. ");
-    }
+    // any other name is rejected by get_solverStruct_gpu below
     std::stringstream debug_buffer;
     std::string output_name = "scm_cuda_"+cudaSolver+".csv";
 
@@ -58,17 +56,16 @@ int main(int argc, char** argv)
     cie::spectralkernel::Params params = cie::spectralkernel::w_eq_2d_decreaseGrid();
     double t = 0.0;
     bool writeB = true;
-    if ( cudaSolver == "singleThread"){
+
+    cie::otFlyGPU::solverStruct<float> solver =
+            cie::otFlyGPU::get_solverStruct_gpu<float>(cudaSolver, 
+                                            params.polynomialDegree());
+
     TIME_FUNC(t, 
-        {cie::otFlyGPU::solve_w_eq_2d_decreaseGrid_singleThread<float>
-            (params,writeB,output_name,storage_type);
+        {cie::otFlyGPU::solve_w_eq_2d_decreaseGrid_gpuSolver<float>
+            (params,writeB,output_name,storage_type, solver);
         });
-    } else if (cudaSolver == "pDegreeThread"){
-            TIME_FUNC(t, 
-        {cie::otFlyGPU::solve_w_eq_2d_decreaseGrid_pDegreeThread<float>
-            (params,writeB,output_name,storage_type);
-        });
-    }
+
     std::cout << "\t--\tTotal time:\t" << t << std::endl;
 
 }
