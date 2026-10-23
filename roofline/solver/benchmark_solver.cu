@@ -124,7 +124,10 @@ int main(int argc, char** argv)
         cie::otFlyGPU::lambdaXY_kernel<ValueType> MapX{dx}; 
         cie::otFlyGPU::lambdaXY_kernel<ValueType> MapY{dy}; 
         cie::otFlyGPU::lambdafx_kernel<ValueType> fx{sS}; 
-        cie::otFlyGPU::lambdaft_kernel<ValueType> ft_k{sT,t0}; 
+        cie::otFlyGPU::lambdaft_kernel<ValueType> ft_k{sT,t0};
+        // fKu kernel and threads per element for this device (untimed)
+        cie::otFlyGPU::solverStruct<ValueType> solver =
+            cie::otFlyGPU::get_solverStruct_gpu<ValueType>(device, polynomialDegree);
 
 
         std::vector<ValueType> cuda_res(params.ndofglobal());
@@ -137,25 +140,10 @@ int main(int argc, char** argv)
                         sp, 
                         debug_buffer);
 
-                    if  (device == "cu_singleThread"){
-                            cie::otFlyGPU::compute_fKu_cu_singleThread<ValueType>(cuda_res,
-                                params,
-                                sp,
-                                MapX,MapY,fx,ft_k,
-                                debug_buffer,
-                                false, //writing off
-                                "noname"//not relevant
-                                );
-                    }else if (device == "cu_pDegreeThread"){
-                            cie::otFlyGPU::compute_fKu_cu_pDegreeThread<ValueType>(cuda_res,
-                                params,
-                                sp,
-                                MapX,MapY,fx,ft_k,
-                                debug_buffer,
-                                false, //writing off
-                                "noname"//not relevant
-                                );
-                    }
+                    cie::otFlyGPU::benchmark_fKu_gpu<ValueType>(params,
+                        sp,
+                        MapX,MapY,fx,ft_k,
+                        solver);
                     ASSERT_NO_CUDA_ERRORS(cudaPeekAtLastError());
                     ASSERT_NO_CUDA_ERRORS(cudaDeviceSynchronize());
                     cie::otFlyGPU::finish_simulation_gpu(cuda_res,sp,debug_buffer);
